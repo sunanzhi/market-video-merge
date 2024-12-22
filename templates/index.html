@@ -1,0 +1,161 @@
+<!-- video_merger/templates/index.html -->
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <title>视频合并平台</title>
+    <style>
+        .video-preview-container {
+            display: flex;
+            flex-wrap: wrap; /* 允许换行 */
+            justify-content: flex-start; /* 左对齐 */
+            margin-top: 10px; /* 上边距 */
+            line-height: 0;
+        }
+        video {
+            width: 120px; /* 设置视频预览的宽度 */
+            margin: 5px; /* 设置视频之间的间距 */
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center">视频合并平台</h1>
+        <form action="/merge" method="post" enctype="multipart/form-data" class="mt-4" id="uploadForm">
+            <div id="videoInputsContainer" class="form-group">
+                <label for="videos">上传视频片段:</label>
+                <input type="file" accept="video/mp4" class="form-control videoInput" multiple><br>
+            </div>
+            <div id="videoPreviewContainer" class="video-preview-container"></div> <!-- 视频预览容器 -->
+            <div class="form-group mt-3">
+                <label for="audio">背景音乐:</label>
+                <input type="file" name="background_music" accept="audio/mp3" class="form-control"><br>
+            </div>
+
+            <div class="form-group">
+                <label for="audio_start_time">音频插入位置（秒）:</label>
+                <input type="number" name="audio_start_time" value="0" class="form-control"><br>
+            </div>
+
+            <div class="form-group">
+                <label for="merged_name">合并后的视频名称:</label>
+                <input type="text" name="merged_name" class="form-control" placeholder="请输入合并后的视频名称（例：合 裤架）"><br>
+            </div>
+
+            <input type="submit" value="合并视频" class="btn btn-success">
+        </form>
+        
+    </div>
+
+    <script>
+        const videoInputsContainer = document.getElementById('videoInputsContainer');
+        const videoPreviewContainer = document.getElementById('videoPreviewContainer');
+        const uploadForm = document.getElementById('uploadForm');
+
+        // 监听文件输入变化
+        videoInputsContainer.addEventListener('change', function(event) {
+            if (event.target.classList.contains('videoInput')) {
+                // 获取选择的文件
+                const files = event.target.files;
+
+                // 遍历文件并创建视频预览
+                for (let i = 0; i < files.length; i++) {
+                    // 创建视频容器div
+                    const videoContainer = document.createElement('div');
+                    videoContainer.className = 'video-container position-relative mb-3';
+                    videoContainer.style.width = '120px'; // 设置容器宽度
+                    videoContainer.style.margin = '5px'; // 设置容器间距
+
+                    const file = files[i];
+                    const videoURL = URL.createObjectURL(file); // 创建视频URL
+
+                    // 创建视频元素
+                    const videoElement = document.createElement('video');
+                    videoElement.style.margin = '0px';
+                    videoElement.src = videoURL;
+                    videoElement.controls = true; // 添加控制条
+                    
+                    // 创建隐藏的文件输入
+                    const hiddenFileInput = document.createElement('input');
+                    hiddenFileInput.type = 'file';
+                    hiddenFileInput.style.display = 'none';
+                    hiddenFileInput.name = `video_${i}`;
+                    
+                    // 创建下标输入框,放在视频下方
+                    const indexInput = document.createElement('input');
+                    indexInput.type = 'number';
+                    indexInput.name = `video_index_${i}`; // 添加name属性以便表单提交
+                    indexInput.placeholder = '视频位置（可选）';
+                    indexInput.className = 'form-control mt-1';
+                    indexInput.style.width = '100%';
+                    indexInput.style.fontSize = '12px';
+                    indexInput.style.padding = '2px 5px';
+
+                    // 创建删除按钮
+                    const deleteButton = document.createElement('button');
+                    deleteButton.innerHTML = '×';
+                    deleteButton.className = 'btn btn-danger btn-sm position-absolute';
+                    deleteButton.style.top = '0';
+                    deleteButton.style.right = '0';
+                    deleteButton.style.padding = '0 6px';
+                    deleteButton.style.fontSize = '16px';
+                    deleteButton.style.lineHeight = '1.2';
+                    deleteButton.onclick = function() {
+                        videoContainer.remove();
+                    };
+                    
+                    // 将视频、删除按钮和下标输入框添加到容器中
+                    videoContainer.appendChild(videoElement);
+                    videoContainer.appendChild(deleteButton);
+                    videoContainer.appendChild(indexInput);
+                    videoContainer.appendChild(hiddenFileInput);
+                    videoPreviewContainer.appendChild(videoContainer);
+
+                    // 创建一个新的 FormData 对象并将文件添加到隐藏输入中
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    hiddenFileInput.files = dataTransfer.files;
+                }
+            }
+        });
+
+        // 监听表单提交
+        uploadForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(uploadForm);
+            
+            // 获取所有视频容器
+            const videoContainers = document.querySelectorAll('.video-container');
+            
+            // 创建一个数组来存储视频和它们的索引
+            const videoData = [];
+            
+            videoContainers.forEach((container, i) => {
+                const indexInput = container.querySelector('input[type="number"]');
+                const fileInput = container.querySelector('input[type="file"]');
+                
+                if(fileInput.files.length > 0) {
+                    formData.append('video_files[]', fileInput.files[0]);
+                }
+            });
+
+            // 发送AJAX请求
+            fetch('/merge', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(result => {
+                alert(result);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('上传失败，请重试');
+            });
+        });
+    </script>
+</body>
+</html>

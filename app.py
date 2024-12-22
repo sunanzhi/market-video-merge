@@ -5,7 +5,12 @@ import random
 import os
 import hashlib
 import mysql.connector
-from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_videoclips
+from moviepy.editor import (
+    VideoFileClip, 
+    AudioFileClip, 
+    concatenate_videoclips,
+    concatenate_audioclips
+)
 from itertools import permutations
 
 app = Flask(__name__)
@@ -38,9 +43,11 @@ def index():
 def merge_videos():
     # 获取用户上传的文件
     uploaded_videos = request.files.getlist('video_files[]')
-    background_music = request.files.get('background_music')
-    audio_start_time = int(request.form.get('audio_start_time', 0))
+    uploaded_bgms = request.files.getlist('bgm[]')
+    # bgm生效位置，默认第一个视频
+    audio_start_video = int(request.form.get('audio_start_video', 1))
     merge_name = request.form.get('merged_name', '')
+    
     
     # 检查合并名称是否为空
     if not merge_name:
@@ -77,8 +84,19 @@ def merge_videos():
             random_videos.append(video_clips[i])  # 随机视频
     # 生成合并效果
     merged_videos = []
-    fixed_positions = sorted(fixed_videos.keys())
-    num_fixed = len(fixed_positions)
+
+    # 保存上传的背景音乐
+    # 确保bgms目录存在
+    bgm_dir = 'bgms'
+    if not os.path.exists(bgm_dir):
+        os.makedirs(bgm_dir)
+        
+    # 保存背景音乐文件
+    for bgm in uploaded_bgms:
+        bgm_path = os.path.join(bgm_dir, bgm.filename)
+        # 检查文件是否已存在
+        if not os.path.exists(bgm_path):
+            bgm.save(bgm_path)
 
     # 生成固定视频的合并列表
     # 创建一个列表,用于存储所有需要随机排列的位置
@@ -111,16 +129,39 @@ def merge_videos():
         final_video_clip = concatenate_videoclips(video_clips_to_merge)
 
         # 处理背景音乐
-        if background_music:
-            audio_path = os.path.join('uploads', background_music.filename)
-            background_music.save(audio_path)
+        if uploaded_bgms:
+            # 随机选择一个背景音乐
+            random_bgm = random.choice(uploaded_bgms)
+            audio_path = os.path.join(bgm_dir, random_bgm.filename)
             audio_clip = AudioFileClip(audio_path)
+            
+            # 计算音频开始时间
+            audio_start_time = 0
+            if audio_start_video > 1:
+                # 计算前面视频的总时长作为音频开始时间
+                for i in range(audio_start_video - 1):
+                    audio_start_time += video_clips_to_merge[i].duration
+            
             # 裁剪音频
-            if audio_clip.duration > final_video_clip.duration:
-                audio_clip = audio_clip.subclip(0, final_video_clip.duration)
+            remaining_duration = final_video_clip.duration - audio_start_time
+            if audio_clip.duration > remaining_duration:
+                audio_clip = audio_clip.subclip(0, remaining_duration)
+            else:
+                # 如果背景音乐长度不够,保留视频原声
+                remaining_video_duration = final_video_clip.duration - (audio_start_time + audio_clip.duration)
+                if remaining_video_duration > 0:
+                    original_audio = final_video_clip.audio.subclip(audio_start_time + audio_clip.duration)
+                    audio_clip = concatenate_audioclips([audio_clip, original_audio])
+            
+            # 创建前面视频的原声音频片段
+            # 从原始视频中提取前面部分的音频
+            original_audio_start = final_video_clip.audio.subclip(0, audio_start_time)
+            
+            # 合并静音和背景音乐
+            final_audio = concatenate_audioclips([original_audio_start, audio_clip])
+            
             # 插入音频
-            final_video_clip = final_video_clip.set_audio(audio_clip)
-
+            final_video_clip = final_video_clip.set_audio(final_audio)
         # 创建merge目录(如果不存在)
         merge_dir = os.path.join("merge", merge_name)
         if not os.path.exists(merge_dir):
@@ -145,7 +186,6 @@ def merge_videos():
         conn.commit()
         cursor.close()
         conn.close()
-
     return "合并完成，生成了多个视频文件！"
 
 if __name__ == '__main__':

@@ -31,12 +31,68 @@
             <div id="videoPreviewContainer" class="video-preview-container"></div> <!-- 视频预览容器 -->
             <div class="form-group mt-3">
                 <label for="audio">背景音乐:</label>
-                <input type="file" name="background_music" accept="audio/mp3" class="form-control"><br>
+                <input type="file" name="background_music" accept="audio/mp3" class="form-control" multiple id="audioInput"><br>
+                <div id="audioPreviewContainer" class="d-flex flex-wrap">
+                    <!-- 音频预览将在这里动态添加 -->
+                </div>
             </div>
+            <script>
+                const audioInput = document.getElementById('audioInput');
+                const audioPreviewContainer = document.getElementById('audioPreviewContainer');
+                
+                audioInput.addEventListener('change', function(event) {
+                    const files = event.target.files;
+                    
+                    for(let i = 0; i < files.length; i++) {
+                        const audioContainer = document.createElement('div');
+                        audioContainer.className = 'position-relative m-2';
+                        
+                        // 创建音频名称显示
+                        const audioName = document.createElement('div');
+                        audioName.textContent = files[i].name;
+                        audioName.style.textAlign = 'center';
+                        audioName.style.marginBottom = '5px';
+                        audioName.style.fontSize = '14px';
+                        
+                        const audio = document.createElement('audio');
+                        audio.controls = true;
+                        audio.src = URL.createObjectURL(files[i]);
+                        
+                        // 创建隐藏的文件输入用于提交
+                        const hiddenInput = document.createElement('input');
+                        hiddenInput.type = 'file';
+                        hiddenInput.style.display = 'none';
+                        hiddenInput.name = 'bgm[]';
+                        
+                        // 创建新的 FileList 对象并设置给隐藏输入
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(files[i]);
+                        hiddenInput.files = dataTransfer.files;
+                        
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.innerHTML = '×';
+                        deleteBtn.className = 'btn btn-danger btn-sm position-absolute';
+                        deleteBtn.style.right = '-10px';
+                        deleteBtn.style.top = '-10px';
+                        deleteBtn.style.borderRadius = '50%';
+                        deleteBtn.style.padding = '0 6px';
+                        
+                        deleteBtn.onclick = function() {
+                            audioContainer.remove();
+                        };
+                        
+                        audioContainer.appendChild(audioName);
+                        audioContainer.appendChild(audio);
+                        audioContainer.appendChild(deleteBtn);
+                        audioContainer.appendChild(hiddenInput);
+                        audioPreviewContainer.appendChild(audioContainer);
+                    }
+                });
+            </script>
 
             <div class="form-group">
-                <label for="audio_start_time">音频插入位置（秒）:</label>
-                <input type="number" name="audio_start_time" value="0" class="form-control"><br>
+                <label for="audio_start_time">音频生效视频位置:</label>
+                <input type="number" name="audio_start_video" value="1" class="form-control"><br>
             </div>
 
             <div class="form-group">
